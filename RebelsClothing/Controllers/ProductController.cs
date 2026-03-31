@@ -6,25 +6,26 @@ using RebelsClothing.Models.Entities;
 
 namespace RebelsClothing.Controllers
 {
-    [Route("api/GetAllPorducts")]
     [ApiController]
+    [Route("api")] // This makes the base route: api/Product
     public class ProductController : ControllerBase
     {
         private readonly ApplicationDbContext _dbContext;
+
         public ProductController(ApplicationDbContext dbContext)
         {
-            this._dbContext = dbContext;
+            _dbContext = dbContext;
         }
-        [HttpGet]
+
+        // GET: api/Product/GetAllProducts or api/Product/GetAllProducts?id=5
+        [HttpGet("GetAllProducts")]
         public IActionResult GetAllProducts([FromQuery] int? id)
         {
             if (id.HasValue)
             {
-                var product = _dbContext.Products
-                    .FirstOrDefault(p => p.Id == id.Value);
-
+                var product = _dbContext.Products.FirstOrDefault(p => p.Id == id.Value);
                 if (product == null)
-                    return NotFound("Product not found");
+                    return NotFound(new { message = "Product not found" });
 
                 return Ok(product);
             }
@@ -33,76 +34,66 @@ namespace RebelsClothing.Controllers
             return Ok(allProducts);
         }
 
-        //[HttpPost]
-        //public IActionResult CreateProduct([FromBody] Product product)
-        //{
-        //    _dbContext.Products.Add(product);
-        //    _dbContext.SaveChanges();
-
-        //    return Ok(product);
-        //}
-
-        [Route("/api/Create&UpdateProducts")]
-
-        [HttpPost]
+        // POST: api/CreateUpdateProducts
+        [HttpPost("CreateUpdateProducts")]
         public IActionResult UpsertProduct([FromBody] Product product)
         {
             if (product == null)
-                return BadRequest("Invalid product data");
+                return BadRequest(new { message = "Invalid product data" });
 
-            // 🔹 UPDATE (if Id exists)
+            // 🔹 UPDATE LOGIC (If ID > 0)
             if (product.Id > 0)
             {
                 var existingProduct = _dbContext.Products.Find(product.Id);
-
                 if (existingProduct == null)
-                    return NotFound("Product not found");
+                    return NotFound(new { message = "Product not found in database" });
 
-                // Update fields
-                existingProduct.ProductId = product.ProductId;
-                existingProduct.Name = product.Name;
-                existingProduct.Description = product.Description;
-                existingProduct.Price = product.Price;
-                existingProduct.Discount = product.Discount;
-                existingProduct.Stock = product.Stock;
-                existingProduct.CategoryId = product.CategoryId;
-                existingProduct.Fabric = product.Fabric;
-                existingProduct.Color = product.Color;
-                existingProduct.Size = product.Size;
-                existingProduct.Type = product.Type;
-                existingProduct.Brand = product.Brand;
-                existingProduct.Material = product.Material;
-                existingProduct.CareInstructions = product.CareInstructions;
-                existingProduct.GenderID = product.GenderID;
-                existingProduct.ImageUrl = product.ImageUrl;
+                // Map properties from incoming product to existing entity
+                _dbContext.Entry(existingProduct).CurrentValues.SetValues(product);
+
+                // 🚨 CRITICAL: Prevent the original CreatedAt from being overwritten by 0001-01-01
+                _dbContext.Entry(existingProduct).Property(x => x.CreatedAt).IsModified = false;
+
+                _dbContext.Entry(existingProduct).State = EntityState.Modified;
             }
             else
             {
+                // 🔹 CREATE LOGIC
+                bool idExists = _dbContext.Products.Any(p => p.ProductId == product.ProductId && product.ProductId != 0);
+
+                if (idExists)
+                {
+                    return Conflict(new { message = "A product with this unique ProductId already exists." });
+                }
+
+                // Set the creation timestamp for new items
+                product.CreatedAt = DateTime.UtcNow;
                 _dbContext.Products.Add(product);
             }
 
+            try
+            {
+                _dbContext.SaveChanges();
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Database error", details = ex.Message });
+            }
+        }
+        // DELETE: api/DeleteProducts?id=5
+        [HttpDelete("DeleteProducts")]
+        public IActionResult DeleteProduct([FromQuery] int id)
+        {
+            var product = _dbContext.Products.Find(id);
+
+            if (product == null)
+                return NotFound(new { message = "Product not found" });
+
+            _dbContext.Products.Remove(product);
             _dbContext.SaveChanges();
 
-            return Ok(product);
+            return Ok(new { message = $"Product with ID {id} deleted successfully" });
         }
-
-
-
-        //[Route("/api/DeleteProducts")]
-
-        [HttpDelete("{id}")]
-        public IActionResult DeleteProduct(int id)
-        {
-            var deleted = _dbContext.Products
-                .Where(p => p.Id == id)
-                .ExecuteDelete();
-
-            if (deleted == 0)
-                return NotFound();
-
-            return Ok($"Product with ID {id} deleted");
-        }
-
-
     }
 }

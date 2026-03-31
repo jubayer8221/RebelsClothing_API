@@ -13,7 +13,8 @@
 
         public int Stock { get; set; }
 
-        public int CategoryId { get; set; }
+        public int CategoryId { get; set; }               // Foreign Key
+        //public Category? Category { get; set; }          // Navigation property
 
         public string? Fabric { get; set; }
 
@@ -33,5 +34,7 @@
 
 
         public  string? ImageUrl { get; set; }
+
+        public DateTime CreatedAt { get; set; }
     }
 }
