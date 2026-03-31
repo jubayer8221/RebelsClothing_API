@@ -1,0 +1,7 @@
+@RebelsClothing_HostAddress = https://localhost:1920
+
+GET {{RebelsClothing_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
